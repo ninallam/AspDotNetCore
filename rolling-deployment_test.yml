@@ -1,0 +1,79 @@
+# this deploys to VM-Env
+# http://13.66.39.43/ - demoignt02 - VM01
+# http://40.84.235.28/ - demoignt12 - VM02
+# http://52.171.218.16/ - demoignt03 - VM03
+
+
+# trigger: none
+pr: none
+
+resources:
+ pipelines:
+ - pipeline: build
+   source: BuildWebApp
+   trigger: 
+    branches:
+    - master
+
+stages:
+- stage: Deploy
+  displayName: Deploy stage
+  jobs:  
+  - deployment: VMDeploy
+    displayName: web
+    pool: demopool
+    environment:
+      name: VM Environment
+      resourceType: VirtualMachine
+    strategy:
+      rolling:
+        maxParallel: 2
+        preDeploy:
+          steps:
+            - download: build
+              artifact: drop
+            - script: echo Hello, world! This is pre-deploy
+              displayName: 'Run a one-line script'
+        deploy:
+          steps:
+          - task: IISWebAppManagementOnMachineGroup@0
+            displayName: 'Create Website'
+            inputs:
+              WebsiteName: 'Default Web Site'
+              AddBinding: True
+              Bindings: '{"bindings":[{"protocol":"http","ipAddress":"All Unassigned","port":"80","hostname":"","sslThumbprint":"","sniFlag":false}]}'
+              ParentWebsiteNameForVD: 'Default Web Site'
+              ParentWebsiteNameForApplication: 'Default Web Site'
+          - task: IISWebAppDeploymentOnMachineGroup@0
+            displayName: 'Deploy application to Website'
+            inputs:
+              WebSiteName: 'Default Web Site'
+              Package: '$(Pipeline.Workspace)/drop/**/*.zip'
+              TakeAppOfflineFlag: true
+              XmlVariableSubstitution: true
+
+        routeTraffic:
+          steps:
+            - download: build
+              artifact: drop
+            - script: echo Hello, world! This is routeTraffic
+              displayName: 'Run a one-line script'
+
+        postRouteTraffic:
+          steps:
+            - download: none
+            - script: echo Hello, world! This is postRouteTraffic
+              displayName: 'Run a one-line script'
+
+        on:
+          failure:
+            steps:
+            - download: none
+            - script: echo Hello, world! This is on failure
+              displayName: 'Run a one-line script'
+
+          success:
+            steps:
+            - download: none
+            - script: echo Hello, world! This is on success
+              displayName: 'Run a one-line script' 
